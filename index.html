@@ -2,14 +2,53 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mini Minecraft Smart Bot</title>
+<title>Ultimate AI Minecraft Companion</title>
 <style>
-  body { margin:0; overflow:hidden; }
-  canvas { display:block; background:#87ceeb; }
+body { margin:0; overflow:hidden; font-family:sans-serif; }
+canvas { display:block; background:#87ceeb; }
+.btn {
+  position:absolute;
+  background:rgba(0,0,0,0.3);
+  color:white;
+  font-size:14px;
+  padding:10px;
+  border-radius:6px;
+  text-align:center;
+  user-select:none;
+}
+#up{bottom:140px; left:60px;}
+#down{bottom:60px; left:60px;}
+#left{bottom:100px; left:0;}
+#right{bottom:100px; left:120px;}
+#follow{bottom:60px; right:40px;}
+#mine{bottom:120px; right:40px;}
+#tower{bottom:180px; right:40px;}
+#bridge{bottom:240px; right:40px;}
+#wall{bottom:300px; right:40px;}
+#dig{bottom:360px; right:40px;}
+#house{bottom:420px; right:40px;}
+#castle{bottom:480px; right:40px;}
+#farm{bottom:540px; right:40px;}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
+
+<!-- Buttons -->
+<div class="btn" id="up">↑</div>
+<div class="btn" id="down">↓</div>
+<div class="btn" id="left">←</div>
+<div class="btn" id="right">→</div>
+<div class="btn" id="follow">Follow</div>
+<div class="btn" id="mine">Mine</div>
+<div class="btn" id="tower">Tower</div>
+<div class="btn" id="bridge">Bridge</div>
+<div class="btn" id="wall">Wall</div>
+<div class="btn" id="dig">Dig</div>
+<div class="btn" id="house">House</div>
+<div class="btn" id="castle">Castle</div>
+<div class="btn" id="farm">Farm</div>
+
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -17,67 +56,181 @@ canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
 const blockSize = 40;
-const worldWidth = 20;
-const worldHeight = 15;
+const worldWidth = 25;
+const worldHeight = 18;
 
-// World: 0 = air, 1 = ground
-let world = Array.from({length: worldHeight}, (_, y) => 
-  Array.from({length: worldWidth}, (_, x) => y > 10 ? 1 : 0)
-);
+// Block types: 0=air,1=dirt,2=stone,3=wood,4=glass,5=door
+let world = Array.from({length:worldHeight},(_,y)=>Array.from({length:worldWidth},(_,x)=>y>13?1:0));
 
-let player = {x:5, y:9};
-let bot = {x:2, y:9, mode:'follow', inventory:0};
+let player = {x:5, y:10};
+let bot = {
+  x:2, y:10,
+  mode:'follow',
+  inventory:{dirt:20, stone:15, wood:10, glass:5, door:2},
+  building:0
+};
 
-// Draw world, player, bot
-function draw() {
+// DRAW
+function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
   for(let y=0;y<worldHeight;y++){
     for(let x=0;x<worldWidth;x++){
-      if(world[y][x]===1){
-        ctx.fillStyle='saddlebrown';
-        ctx.fillRect(x*blockSize, y*blockSize, blockSize, blockSize);
-      }
+      if(world[y][x]===1) ctx.fillStyle='saddlebrown';
+      else if(world[y][x]===2) ctx.fillStyle='gray';
+      else if(world[y][x]===3) ctx.fillStyle='peru';
+      else if(world[y][x]===4) ctx.fillStyle='lightblue';
+      else if(world[y][x]===5) ctx.fillStyle='brown';
+      else continue;
+      ctx.fillRect(x*blockSize, y*blockSize, blockSize, blockSize);
     }
   }
   ctx.fillStyle='blue'; ctx.fillRect(player.x*blockSize, player.y*blockSize, blockSize, blockSize);
   ctx.fillStyle='green'; ctx.fillRect(bot.x*blockSize, bot.y*blockSize, blockSize, blockSize);
-
-  // Draw inventory
   ctx.fillStyle='black';
-  ctx.fillText('Bot inventory: '+bot.inventory, 10, 20);
+  ctx.font='14px sans-serif';
+  ctx.fillText('Bot mode: '+bot.mode,10,20);
+  ctx.fillText(`Inventory: dirt=${bot.inventory.dirt} stone=${bot.inventory.stone} wood=${bot.inventory.wood} glass=${bot.inventory.glass} door=${bot.inventory.door}`,10,40);
 }
 
-// Bot logic: follow + build/mine intelligently
-function botAction() {
-  // FOLLOW MODE
-  if(bot.mode==='follow'){
-    if(bot.x < player.x) bot.x++;
-    else if(bot.x > player.x) bot.x--;
-    if(bot.y < player.y) bot.y++;
-    else if(bot.y > player.y) bot.y--;
+// BOT LOGIC
+function botAction(){
+  // Simple follow pathfinding
+  if(['follow','tower','bridge','wall','dig','mine','house','castle','farm'].includes(bot.mode)){
+    if(Math.abs(bot.x-player.x)>1) bot.x += bot.x<player.x?1:-1;
+    if(Math.abs(bot.y-player.y)>0) bot.y += bot.y<player.y?1:-1;
   }
 
-  // BUILD MODE: place a wall next to bot if air
-  if(bot.mode==='build'){
-    let targetX = bot.x + 1;
-    let targetY = bot.y;
-    if(targetX < worldWidth && world[targetY][targetX]===0){
-      world[targetY][targetX] = 1;
-      if(bot.inventory>0) bot.inventory--;
-    }
-  }
-
-  // MINE MODE: mine block in front of bot
+  // Mine
   if(bot.mode==='mine'){
-    let targetX = bot.x + 1;
-    let targetY = bot.y;
-    if(targetX < worldWidth && world[targetY][targetX]===1){
-      world[targetY][targetX] = 0;
-      bot.inventory++;
+    let tx=bot.x+1, ty=bot.y;
+    if(tx<worldWidth && world[ty][tx]>0){
+      let type=world[ty][tx];
+      if(type===1) bot.inventory.dirt++;
+      else if(type===2) bot.inventory.stone++;
+      else if(type===3) bot.inventory.wood++;
+      else if(type===4) bot.inventory.glass++;
+      else if(type===5) bot.inventory.door++;
+      world[ty][tx]=0;
+    }
+  }
+
+  // Tower 3x3
+  if(bot.mode==='tower'){
+    for(let dx=-1;dx<=1;dx++){
+      for(let dy=-1;dy>=-3;dy--){
+        let x=bot.x+dx, y=bot.y+dy;
+        if(y>=0 && x>=0 && x<worldWidth && world[y][x]===0 && bot.inventory.dirt>0){
+          world[y][x]=1; bot.inventory.dirt--;
+        }
+      }
+    }
+  }
+
+  // Bridge 3x5
+  if(bot.mode==='bridge'){
+    for(let i=1;i<=5;i++){
+      for(let dy=-1;dy<=1;dy++){
+        let x=bot.x+i, y=bot.y+dy;
+        if(x<worldWidth && y>=0 && y<worldHeight && world[y][x]===0 && bot.inventory.dirt>0){
+          world[y][x]=1; bot.inventory.dirt--;
+        }
+      }
+    }
+  }
+
+  // Wall 3x3
+  if(bot.mode==='wall'){
+    for(let dx=0;dx<=2;dx++){
+      for(let dy=-1;dy>=-3;dy--){
+        let x=bot.x+dx, y=bot.y+dy;
+        if(x<worldWidth && y>=0 && world[y][x]===0 && bot.inventory.dirt>0){
+          world[y][x]=1; bot.inventory.dirt--;
+        }
+      }
+    }
+  }
+
+  // Dig 3-wide
+  if(bot.mode==='dig'){
+    for(let dx=0;dx<=2;dx++){
+      let x=bot.x+dx, y=bot.y;
+      if(x<worldWidth && world[y][x]>0){
+        let type=world[y][x];
+        if(type===1) bot.inventory.dirt++;
+        else if(type===2) bot.inventory.stone++;
+        else if(type===3) bot.inventory.wood++;
+        else if(type===4) bot.inventory.glass++;
+        else if(type===5) bot.inventory.door++;
+        world[y][x]=0;
+      }
+    }
+  }
+
+  // House 3x3x3 with roof
+  if(bot.mode==='house'){
+    for(let dx=0;dx<3;dx++){
+      for(let dy=-2;dy<=0;dy++){
+        for(let dz=0;dz<3;dz++){
+          let x=bot.x+dx, y=bot.y+dy;
+          if(x<worldWidth && y>=0 && world[y][x]===0 && bot.inventory.dirt>0){
+            world[y][x]=1; bot.inventory.dirt--;
+          }
+        }
+      }
+    }
+    // Roof
+    for(let dx=-1;dx<=3;dx++){
+      let y=bot.y-3;
+      if(bot.inventory.wood>0 && bot.x+dx>=0 && bot.x+dx<worldWidth) {
+        world[y][bot.x+dx]=3; bot.inventory.wood--;
+      }
+    }
+    // Windows
+    world[bot.y-1][bot.x+1]=4;
+    world[bot.y-1][bot.x+1+1]=4;
+    // Door
+    if(bot.inventory.door>0) { world[bot.y][bot.x+1]=5; bot.inventory.door--; }
+  }
+
+  // Castle 5x5 2 floors with towers and roof
+  if(bot.mode==='castle'){
+    for(let floor=0;floor<2;floor++){
+      for(let dx=0;dx<5;dx++){
+        for(let dy=-4-floor*3;dy<=-floor*3;dy++){
+          for(let dz=0;dz<5;dz++){
+            let x=bot.x+dx, y=bot.y+dy;
+            if(x<worldWidth && y>=0 && world[y][x]===0 && bot.inventory.stone>0){
+              world[y][x]=2; bot.inventory.stone--;
+            }
+          }
+        }
+      }
+    }
+    // Roof
+    for(let dx=-1;dx<=5;dx++){
+      for(let dz=-1;dz<=5;dz++){
+        let y=bot.y-7;
+        if(y>=0 && bot.inventory.wood>0 && bot.x+dx>=0 && bot.x+dx<worldWidth){
+          world[y][bot.x+dx]=3; bot.inventory.wood--;
+        }
+      }
+    }
+  }
+
+  // Farm: clears a 3x3 patch
+  if(bot.mode==='farm'){
+    for(let dx=0;dx<3;dx++){
+      for(let dy=0;dy<3;dy++){
+        let x=bot.x+dx, y=bot.y+dy;
+        if(x<worldWidth && y<worldHeight && world[y][x]===1 && bot.inventory.dirt>0){
+          world[y][x]=1; bot.inventory.dirt--;
+        }
+      }
     }
   }
 }
 
+// GAME LOOP
 function gameLoop(){
   botAction();
   draw();
@@ -85,17 +238,53 @@ function gameLoop(){
 }
 gameLoop();
 
-// Player controls
-window.addEventListener('keydown', e => {
-  if(e.key==='ArrowUp' && player.y>0) player.y--;
-  if(e.key==='ArrowDown' && player.y<worldHeight-1) player.y++;
-  if(e.key==='ArrowLeft' && player.x>0) player.x--;
-  if(e.key==='ArrowRight' && player.x<worldWidth-1) player.x++;
+// PLAYER MOVEMENT
+function moveUp(){if(player.y>0) player.y--;}
+function moveDown(){if(player.y<worldHeight-1) player.y++;}
+function moveLeft(){if(player.x>0) player.x--;}
+function moveRight(){if(player.x<worldWidth-1) player.x++;}
 
-  // Switch bot modes
-  if(e.key==='1') bot.mode='follow';
-  if(e.key==='2') bot.mode='build';
-  if(e.key==='3') bot.mode='mine';
+// BOT MODES
+function setFollow(){bot.mode='follow';}
+function setMine(){bot.mode='mine';}
+function setTower(){bot.mode='tower';}
+function setBridge(){bot.mode='bridge';}
+function setWall(){bot.mode='wall';}
+function setDig(){bot.mode='dig';}
+function setHouse(){bot.mode='house';}
+function setCastle(){bot.mode='castle';}
+function setFarm(){bot.mode='farm';}
+
+// MOBILE BUTTONS
+document.getElementById('up').addEventListener('touchstart',moveUp);
+document.getElementById('down').addEventListener('touchstart',moveDown);
+document.getElementById('left').addEventListener('touchstart',moveLeft);
+document.getElementById('right').addEventListener('touchstart',moveRight);
+document.getElementById('follow').addEventListener('touchstart',setFollow);
+document.getElementById('mine').addEventListener('touchstart',setMine);
+document.getElementById('tower').addEventListener('touchstart',setTower);
+document.getElementById('bridge').addEventListener('touchstart',setBridge);
+document.getElementById('wall').addEventListener('touchstart',setWall);
+document.getElementById('dig').addEventListener('touchstart',setDig);
+document.getElementById('house').addEventListener('touchstart',setHouse);
+document.getElementById('castle').addEventListener('touchstart',setCastle);
+document.getElementById('farm').addEventListener('touchstart',setFarm);
+
+// DESKTOP KEYS
+window.addEventListener('keydown', e=>{
+  if(e.key==='ArrowUp') moveUp();
+  if(e.key==='ArrowDown') moveDown();
+  if(e.key==='ArrowLeft') moveLeft();
+  if(e.key==='ArrowRight') moveRight();
+  if(e.key==='1') setFollow();
+  if(e.key==='2') setMine();
+  if(e.key==='3') setTower();
+  if(e.key==='4') setBridge();
+  if(e.key==='5') setWall();
+  if(e.key==='6') setDig();
+  if(e.key==='7') setHouse();
+  if(e.key==='8') setCastle();
+  if(e.key==='9') setFarm();
 });
 </script>
 </body>
