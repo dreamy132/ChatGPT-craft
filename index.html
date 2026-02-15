@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Mini Minecraft</title>
+<title>Mini Minecraft Smart Bot</title>
 <style>
   body { margin:0; overflow:hidden; }
   canvas { display:block; background:#87ceeb; }
@@ -20,18 +20,17 @@ const blockSize = 40;
 const worldWidth = 20;
 const worldHeight = 15;
 
-// Simple world array: 0 = air, 1 = ground
+// World: 0 = air, 1 = ground
 let world = Array.from({length: worldHeight}, (_, y) => 
   Array.from({length: worldWidth}, (_, x) => y > 10 ? 1 : 0)
 );
 
 let player = {x:5, y:9};
-let bot = {x:2, y:9};
+let bot = {x:2, y:9, mode:'follow', inventory:0};
 
+// Draw world, player, bot
 function draw() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  
-  // Draw world
   for(let y=0;y<worldHeight;y++){
     for(let x=0;x<worldWidth;x++){
       if(world[y][x]===1){
@@ -40,25 +39,47 @@ function draw() {
       }
     }
   }
-  
-  // Draw player
-  ctx.fillStyle='blue';
-  ctx.fillRect(player.x*blockSize, player.y*blockSize, blockSize, blockSize);
-  
-  // Draw bot
-  ctx.fillStyle='green';
-  ctx.fillRect(bot.x*blockSize, bot.y*blockSize, blockSize, blockSize);
+  ctx.fillStyle='blue'; ctx.fillRect(player.x*blockSize, player.y*blockSize, blockSize, blockSize);
+  ctx.fillStyle='green'; ctx.fillRect(bot.x*blockSize, bot.y*blockSize, blockSize, blockSize);
+
+  // Draw inventory
+  ctx.fillStyle='black';
+  ctx.fillText('Bot inventory: '+bot.inventory, 10, 20);
 }
 
-function moveBot() {
-  if(bot.x < player.x) bot.x++;
-  else if(bot.x > player.x) bot.x--;
-  if(bot.y < player.y) bot.y++;
-  else if(bot.y > player.y) bot.y--;
+// Bot logic: follow + build/mine intelligently
+function botAction() {
+  // FOLLOW MODE
+  if(bot.mode==='follow'){
+    if(bot.x < player.x) bot.x++;
+    else if(bot.x > player.x) bot.x--;
+    if(bot.y < player.y) bot.y++;
+    else if(bot.y > player.y) bot.y--;
+  }
+
+  // BUILD MODE: place a wall next to bot if air
+  if(bot.mode==='build'){
+    let targetX = bot.x + 1;
+    let targetY = bot.y;
+    if(targetX < worldWidth && world[targetY][targetX]===0){
+      world[targetY][targetX] = 1;
+      if(bot.inventory>0) bot.inventory--;
+    }
+  }
+
+  // MINE MODE: mine block in front of bot
+  if(bot.mode==='mine'){
+    let targetX = bot.x + 1;
+    let targetY = bot.y;
+    if(targetX < worldWidth && world[targetY][targetX]===1){
+      world[targetY][targetX] = 0;
+      bot.inventory++;
+    }
+  }
 }
 
 function gameLoop(){
-  moveBot();
+  botAction();
   draw();
   requestAnimationFrame(gameLoop);
 }
@@ -70,6 +91,11 @@ window.addEventListener('keydown', e => {
   if(e.key==='ArrowDown' && player.y<worldHeight-1) player.y++;
   if(e.key==='ArrowLeft' && player.x>0) player.x--;
   if(e.key==='ArrowRight' && player.x<worldWidth-1) player.x++;
+
+  // Switch bot modes
+  if(e.key==='1') bot.mode='follow';
+  if(e.key==='2') bot.mode='build';
+  if(e.key==='3') bot.mode='mine';
 });
 </script>
 </body>
